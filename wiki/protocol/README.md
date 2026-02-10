@@ -27,6 +27,42 @@ Heartbeat response to server's `ping`.
 { "type": "pong" }
 ```
 
+### `offer`
+
+WebRTC offer — relayed to target player.
+
+```json
+{
+  "type": "offer",
+  "targetPlayerId": "user-uuid",
+  "sdp": "{...serialized RTCSessionDescription}"
+}
+```
+
+### `answer`
+
+WebRTC answer — relayed to target player.
+
+```json
+{
+  "type": "answer",
+  "targetPlayerId": "user-uuid",
+  "sdp": "{...serialized RTCSessionDescription}"
+}
+```
+
+### `ice_candidate`
+
+ICE candidate — relayed to target player.
+
+```json
+{
+  "type": "ice_candidate",
+  "targetPlayerId": "user-uuid",
+  "candidate": "{...serialized RTCIceCandidate}"
+}
+```
+
 ## Server → Client (S2C)
 
 ### `world_state`
@@ -87,6 +123,56 @@ Error notification (e.g. auth failure).
 {
   "type": "error",
   "message": "Invalid token"
+}
+```
+
+### `offer`
+
+Relayed WebRTC offer from another player.
+
+```json
+{
+  "type": "offer",
+  "fromPlayerId": "user-uuid",
+  "sdp": "{...serialized RTCSessionDescription}"
+}
+```
+
+### `answer`
+
+Relayed WebRTC answer from another player.
+
+```json
+{
+  "type": "answer",
+  "fromPlayerId": "user-uuid",
+  "sdp": "{...serialized RTCSessionDescription}"
+}
+```
+
+### `ice_candidate`
+
+Relayed ICE candidate from another player.
+
+```json
+{
+  "type": "ice_candidate",
+  "fromPlayerId": "user-uuid",
+  "candidate": "{...serialized RTCIceCandidate}"
+}
+```
+
+### `turn_credentials`
+
+TURN server credentials (sent on connection). Generated via HMAC shared secret.
+
+```json
+{
+  "type": "turn_credentials",
+  "urls": ["stun:host:3478", "turn:host:3478?transport=udp", "turn:host:3478?transport=tcp", "turns:host:5349?transport=tcp"],
+  "username": "1234567890:user-uuid",
+  "credential": "base64-hmac-sha1",
+  "ttl": 86400
 }
 ```
 

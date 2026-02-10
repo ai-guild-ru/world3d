@@ -1,4 +1,5 @@
 import 'dotenv/config'
+import { createHmac } from 'crypto'
 import { WebSocketServer, WebSocket } from 'ws'
 import jwt from 'jsonwebtoken'
 import { IncomingMessage } from 'http'
@@ -7,11 +8,18 @@ import {
   createMessage,
   C2S_PLAYER_STATE,
   C2S_PONG,
+  C2S_OFFER,
+  C2S_ANSWER,
+  C2S_ICE_CANDIDATE,
   S2C_PING,
   S2C_PLAYER_JOINED,
   S2C_PLAYER_LEFT,
   S2C_ERROR,
   S2C_WORLD_STATE,
+  S2C_OFFER,
+  S2C_ANSWER,
+  S2C_ICE_CANDIDATE,
+  S2C_TURN_CREDENTIALS,
   type Vec3,
   type Quaternion,
   type AnimationName,
@@ -32,6 +40,15 @@ if (!JWT_SECRET) {
 const HEARTBEAT_INTERVAL = 10_000
 // If no pong received within this time, disconnect
 const HEARTBEAT_TIMEOUT = 30_000
+
+// --- TURN config ---
+
+const TURN_SECRET = process.env.TURN_SECRET || ''
+const TURN_REALM = process.env.TURN_REALM || 'localhost'
+// TURN host — defaults to the realm (in docker, coturn service resolves via docker DNS)
+const TURN_HOST = process.env.TURN_HOST || TURN_REALM
+// TURN credentials TTL in seconds (24 hours)
+const TURN_TTL = 86400
 
 // --- Types ---
 
@@ -58,6 +75,49 @@ const players = new Map<string, ConnectedPlayer>()
 
 /** Counter for generating unique connection ids */
 let connectionCounter = 0
+
+/**
+ * Generate temporary TURN credentials using HMAC shared secret (RFC 5389).
+ * coturn validates these credentials using the same TURN_SECRET.
+ * Username format: "timestamp:userId" — coturn parses the timestamp to check TTL.
+ */
+function generateTurnCredentials(userId: string): {
+  urls: string[]
+  username: string
+  credential: string
+  ttl: number
+} {
+  const timestamp = Math.floor(Date.now() / 1000) + TURN_TTL
+  const username = `${timestamp}:${userId}`
+  const credential = createHmac('sha1', TURN_SECRET)
+    .update(username)
+    .digest('base64')
+
+  return {
+    urls: [
+      `stun:${TURN_HOST}:3478`,
+      `turn:${TURN_HOST}:3478?transport=udp`,
+      `turn:${TURN_HOST}:3478?transport=tcp`,
+      `turns:${TURN_HOST}:5349?transport=tcp`,
+    ],
+    username,
+    credential,
+    ttl: TURN_TTL,
+  }
+}
+
+/**
+ * Find connection ID by userId (for signaling relay).
+ * Returns the first matching connection or null.
+ */
+function findConnectionByUserId(userId: string): string | null {
+  for (const [connId, p] of players) {
+    if (p.userId === userId) {
+      return connId
+    }
+  }
+  return null
+}
 
 // --- Server ---
 
@@ -140,6 +200,38 @@ function sendWorldState(targetId: string): void {
 }
 
 /**
+ * Broadcast world_state to all connected players except the sender.
+ * Each recipient gets a list of all other players (excluding themselves).
+ */
+function broadcastWorldState(senderId: string): void {
+  for (const [id, player] of players) {
+    if (id === senderId || player.ws.readyState !== WebSocket.OPEN) {
+      continue
+    }
+
+    const otherPlayers: PlayerData[] = []
+    for (const [otherId, other] of players) {
+      if (otherId !== id) {
+        otherPlayers.push({
+          playerId: other.userId,
+          username: other.username,
+          position: other.position,
+          rotation: other.rotation,
+          animation: other.animation,
+        })
+      }
+    }
+
+    player.ws.send(
+      createMessage({
+        type: S2C_WORLD_STATE,
+        players: otherPlayers,
+      }),
+    )
+  }
+}
+
+/**
  * Remove player and notify others.
  */
 function removePlayer(connectionId: string): void {
@@ -216,6 +308,17 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
   // Send current world state to the new player
   sendWorldState(connectionId)
 
+  // Send TURN credentials to the new player (needed for WebRTC P2P connections)
+  if (TURN_SECRET) {
+    const creds = generateTurnCredentials(player.userId)
+    ws.send(
+      createMessage({
+        type: S2C_TURN_CREDENTIALS,
+        ...creds,
+      }),
+    )
+  }
+
   // --- Message handler ---
   ws.on('message', (raw: Buffer) => {
     const msg = parseMessage(raw.toString())
@@ -225,10 +328,13 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
 
     switch (msg.type) {
       case C2S_PLAYER_STATE:
-        // Update player state
+        // Update player state in-memory
         player.position = msg.position
         player.rotation = msg.rotation
         player.animation = msg.animation
+
+        // Broadcast updated world state to all other players
+        broadcastWorldState(connectionId)
         break
 
       case C2S_PONG:
@@ -236,6 +342,59 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
         player.isAlive = true
         player.lastPong = Date.now()
         break
+
+      // --- WebRTC signaling relay ---
+
+      case C2S_OFFER: {
+        const targetConnId = findConnectionByUserId(msg.targetPlayerId)
+        if (targetConnId) {
+          const target = players.get(targetConnId)
+          if (target && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(
+              createMessage({
+                type: S2C_OFFER,
+                fromPlayerId: player.userId,
+                sdp: msg.sdp,
+              }),
+            )
+          }
+        }
+        break
+      }
+
+      case C2S_ANSWER: {
+        const targetConnId = findConnectionByUserId(msg.targetPlayerId)
+        if (targetConnId) {
+          const target = players.get(targetConnId)
+          if (target && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(
+              createMessage({
+                type: S2C_ANSWER,
+                fromPlayerId: player.userId,
+                sdp: msg.sdp,
+              }),
+            )
+          }
+        }
+        break
+      }
+
+      case C2S_ICE_CANDIDATE: {
+        const targetConnId = findConnectionByUserId(msg.targetPlayerId)
+        if (targetConnId) {
+          const target = players.get(targetConnId)
+          if (target && target.ws.readyState === WebSocket.OPEN) {
+            target.ws.send(
+              createMessage({
+                type: S2C_ICE_CANDIDATE,
+                fromPlayerId: player.userId,
+                candidate: msg.candidate,
+              }),
+            )
+          }
+        }
+        break
+      }
     }
   })
 

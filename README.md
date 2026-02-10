@@ -90,6 +90,6 @@ src/
 ## Roadmap
 
 - [x] Phase 1 — Service and basic connection (JWT, heartbeat, protocol)
-- [ ] Phase 2 — Position synchronization (broadcast, adaptive send rate)
+- [x] Phase 2 — Position synchronization (broadcast, adaptive send rate)
 - [ ] Phase 3 — Animations and interpolation
 - [ ] Phase 4 — Optimization (radius filtering, binary protocol)

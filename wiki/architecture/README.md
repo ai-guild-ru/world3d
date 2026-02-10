@@ -9,10 +9,14 @@ Browser-first model — client is authoritative over its own position:
 │ Client A │ ──────────────────→│  World3D WS  │←──────────────────→│ Client B │
 │          │←──────────────────→│   Server     │                    │          │
 └──────────┘  player_state      │  (port 4100) │  world_state       └──────────┘
-              pong              │              │  player_joined
-                                │  In-memory   │  player_left
-                                │  state store │  ping
-                                └──────────────┘
+     ↑        pong              │              │  player_joined        ↑
+     │        offer/answer/ice  │  In-memory   │  player_left          │
+     │                          │  state store │  ping                 │
+     │                          │  + signaling │  turn_credentials     │
+     │                          │    relay     │                       │
+     │                          └──────────────┘                       │
+     │                                                                 │
+     └─────────────── WebRTC P2P (audio) ─────────────────────────────┘
 ```
 
 - Client moves locally without latency
