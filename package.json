@@ -1,0 +1,26 @@
+{
+  "name": "world3d-multiplayer",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "dev": "tsx watch src/index.ts",
+    "types": "tsc --noEmit",
+    "types:watch": "tsc --noEmit --watch",
+    "lint": "eslint .",
+    "format": "prettier --write \"**/*.{ts,tsx,js}\""
+  },
+  "dependencies": {
+    "dotenv": "^17.2.3",
+    "jsonwebtoken": "^9.0.3",
+    "ws": "^8.18.3"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0.10",
+    "@types/ws": "^8.18.1",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
