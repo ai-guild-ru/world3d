@@ -20,6 +20,7 @@ import {
   S2C_ANSWER,
   S2C_ICE_CANDIDATE,
   S2C_TURN_CREDENTIALS,
+  WS_CLOSE_SESSION_REPLACED,
   type Vec3,
   type Quaternion,
   type AnimationName,
@@ -273,6 +274,14 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     ws.send(createMessage({ type: S2C_ERROR, message: 'Invalid token' }))
     ws.close(4002, 'Invalid token')
     return
+  }
+
+  // --- Close existing sessions for this userId (one session per user) ---
+  for (const [existingConnId, existingPlayer] of players) {
+    if (existingPlayer.userId === payload.userId) {
+      existingPlayer.ws.close(WS_CLOSE_SESSION_REPLACED, 'session_replaced')
+      removePlayer(existingConnId)
+    }
   }
 
   // --- Register player ---

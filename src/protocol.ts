@@ -40,6 +40,9 @@ export const S2C_ANSWER = 'answer' as const
 export const S2C_ICE_CANDIDATE = 'ice_candidate' as const
 export const S2C_TURN_CREDENTIALS = 'turn_credentials' as const
 
+// --- Custom WebSocket close codes ---
+export const WS_CLOSE_SESSION_REPLACED = 4009
+
 // --- Data types ---
 
 export interface Vec3 {
