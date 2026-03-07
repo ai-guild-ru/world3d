@@ -22,7 +22,7 @@ const {
 - **wsRef** — WebSocket ref, used by `useVoiceChat` for signaling
 - **onSignalingMessageRef** — callback ref for WebRTC signaling messages, set by `useVoiceChat`
 - **turnCredentialsRef** — TURN credentials received from server
-- Connects to WS server at `NEXT_PUBLIC_WORLD3D_WS_URL` (default `ws://localhost:4100`)
+- Connects to WS server at `/world3d-service` on the current host
 - Sends JWT token from `localStorage` as query param
 - Responds to `ping` with `pong` automatically
 - Auto-reconnects on disconnect (3s delay), unless intentionally closed
@@ -85,12 +85,6 @@ Connects WebRTC `MediaStream` to Three.js `PositionalAudio` for spatial voice au
 ### Avatar (`src/components/world3d/Avatar/`)
 
 Shared avatar component used by both `Player` and `RemotePlayer`. Scene is cloned per instance via `useGLTFLoad` so each player has its own skeleton.
-
-## Environment Variables
-
-| Variable | Default | Where |
-|----------|---------|-------|
-| `NEXT_PUBLIC_WORLD3D_WS_URL` | `ws://localhost:4100` | Main app `.env` |
 
 ## Current State
 

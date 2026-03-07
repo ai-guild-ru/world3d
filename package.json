@@ -14,12 +14,14 @@
   "dependencies": {
     "dotenv": "^17.2.3",
     "jsonwebtoken": "^9.0.3",
+    "three": "^0.182.0",
     "ws": "^8.18.3"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",
     "@types/ws": "^8.18.1",
     "@types/node": "^22.10.0",
+    "@types/three": "^0.182.0",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0"
   }

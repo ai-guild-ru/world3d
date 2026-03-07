@@ -4,7 +4,7 @@
  * All messages are JSON with { type, ...payload }.
  *
  * Client → Server:
- *   - player_state   { position, rotation, animation }
+ *   - player_state   { matrix, animation }          — 4x4 transformation matrix (column-major)
  *   - pong           {}
  *   - offer          { targetPlayerId, sdp }        — WebRTC offer (relayed to target)
  *   - answer         { targetPlayerId, sdp }        — WebRTC answer (relayed to target)
@@ -31,6 +31,9 @@ export const C2S_ICE_CANDIDATE = 'ice_candidate' as const
 
 // --- Server → Client message types ---
 export const S2C_WORLD_STATE = 'world_state' as const
+export const S2C_OBJECT_CREATED = 'object_created' as const
+export const S2C_OBJECT_UPDATE = 'object_update' as const
+export const S2C_OBJECT_DELETED = 'object_deleted' as const
 export const S2C_PLAYER_JOINED = 'player_joined' as const
 export const S2C_PLAYER_LEFT = 'player_left' as const
 export const S2C_ERROR = 'error' as const
@@ -64,8 +67,8 @@ export type AnimationName = 'idle' | 'walk' | 'run' | 'jump'
 
 export interface C2SPlayerState {
   type: typeof C2S_PLAYER_STATE
-  position: Vec3
-  rotation: Quaternion
+  /** 4x4 transformation matrix (column-major, 16 elements) */
+  matrix: number[]
   animation: AnimationName
 }
 
@@ -114,6 +117,27 @@ export interface PlayerData {
 export interface S2CWorldState {
   type: typeof S2C_WORLD_STATE
   players: PlayerData[]
+}
+
+/** New object created in the world */
+export interface S2CObjectCreated {
+  type: typeof S2C_OBJECT_CREATED
+  id: string
+  parentId: string
+  object: object
+}
+
+/** Update properties of an existing object */
+export interface S2CObjectUpdate {
+  type: typeof S2C_OBJECT_UPDATE
+  id: string
+  object: object
+}
+
+/** Object deleted from the world */
+export interface S2CObjectDeleted {
+  type: typeof S2C_OBJECT_DELETED
+  id: string
 }
 
 export interface S2CPlayerJoined {
@@ -168,6 +192,9 @@ export interface S2CTurnCredentials {
 
 export type S2CMessage =
   | S2CWorldState
+  | S2CObjectCreated
+  | S2CObjectUpdate
+  | S2CObjectDeleted
   | S2CPlayerJoined
   | S2CPlayerLeft
   | S2CError

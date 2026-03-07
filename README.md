@@ -1,33 +1,68 @@
 # World3D Multiplayer Server
 
-WebSocket server for player synchronization in the 3D world.
+Микросервис для синхронизации 3D мира: WebSocket для real-time обновлений, HTTP API для CRUD операций.
 
-## Architecture
+## Архитектура
 
-- **Transport**: WebSocket (`ws` library), port 4100
-- **Auth**: JWT (reuses `JWT_SECRET` from main app)
-- **Protocol**: JSON messages
-- **State**: In-memory player storage (position, rotation, animation)
-- **Heartbeat**: Server pings every 10s, disconnects after 30s timeout
+### Один сервер на порту 4100
 
-## Protocol
+| Тип запроса | Назначение |
+|-------------|------------|
+| **HTTP** | REST API для CRUD операций с объектами мира |
+| **WebSocket** (upgrade) | Real-time синхронизация игроков (требует JWT) |
+
+### Хранилище
+
+- **Three.js Scene** — единственный источник правды для состояния мира
+- **world.json** — персистентное хранилище (`/app/storage/world3d/worlds/main/world.json`)
+- **In-memory Map** — онлайн игроки (позиция, анимация)
+
+## HTTP API
+
+### Endpoints
+
+| Method | Path | Params | Description |
+|--------|------|--------|-------------|
+| `GET` | `/api/objects` | `nodeId`, `depth`, `detailed` | Чтение дерева объектов |
+| `GET` | `/api/players` | — | Список всех игроков |
+| `GET` | `/api/player` | `id` или `username` | Информация об игроке |
+| `GET` | `/health` | — | Health check |
+
+### Пример
+
+```bash
+curl "http://localhost:4100/api/objects?nodeId=root&depth=10&detailed=true"
+```
+
+## WebSocket Protocol
+
+### Подключение
+
+```
+ws://localhost:4100?token=<jwt_token>
+```
+
+Или через заголовок:
+```
+Authorization: Bearer <jwt_token>
+```
 
 ### Client → Server
 
 | Type | Payload | Description |
 |------|---------|-------------|
-| `player_state` | `{ position, rotation, animation }` | Player state update |
-| `pong` | `{}` | Heartbeat response |
+| `player_state` | `{ position, rotation, animation }` | Обновление состояния игрока |
+| `pong` | `{}` | Ответ на heartbeat |
 
 ### Server → Client
 
 | Type | Payload | Description |
 |------|---------|-------------|
-| `world_state` | `{ players: [...] }` | All connected players |
-| `player_joined` | `{ playerId, username }` | New player connected |
-| `player_left` | `{ playerId }` | Player disconnected |
+| `world_state` | `{ players: [...] }` | Все подключенные игроки |
+| `player_joined` | `{ playerId, username }` | Новый игрок подключился |
+| `player_left` | `{ playerId }` | Игрок отключился |
 | `ping` | `{}` | Heartbeat ping |
-| `error` | `{ message }` | Error notification |
+| `error` | `{ message }` | Ошибка |
 
 ### Data Types
 
@@ -61,35 +96,25 @@ npm install
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `JWT_SECRET` | — | **Required**. Must match main app |
-| `WORLD3D_PORT` | `4100` | WebSocket server port |
-
-## Connection
-
-Client connects with JWT token:
-
-```
-ws://localhost:4100?token=<jwt_token>
-```
-
-Or via Authorization header:
-
-```
-Authorization: Bearer <jwt_token>
-```
-
-Unauthenticated connections are rejected with close code `4001` (missing token) or `4002` (invalid token).
+| `WORLD3D_PORT` | `4100` | Server port (HTTP + WebSocket) |
+| `WORLD3D_STORAGE_DIR` | `/app/storage/world3d` | Path to world storage |
 
 ## Project Structure
 
 ```
 src/
-├── index.ts      — WebSocket server, auth, heartbeat, connection handling
-└── protocol.ts   — Message types, data types, helpers
+├── index.ts      — Entry point, HTTP server
+├── api.ts        — HTTP API request handler
+├── ws.ts         — WebSocket handler (auth, heartbeat, signaling)
+├── store.ts      — World3DStore (Three.js scene management)
+└── protocol.ts   — Message types, data types
 ```
 
 ## Roadmap
 
-- [x] Phase 1 — Service and basic connection (JWT, heartbeat, protocol)
-- [x] Phase 2 — Position synchronization (broadcast, adaptive send rate)
-- [ ] Phase 3 — Animations and interpolation
-- [ ] Phase 4 — Optimization (radius filtering, binary protocol)
+- [x] Phase 1 — WebSocket server (JWT, heartbeat, protocol)
+- [x] Phase 2 — Position synchronization (broadcast)
+- [x] Phase 3 — HTTP API for world objects
+- [x] Phase 4 — Three.js scene as source of truth
+- [ ] Phase 5 — WebSocket for anonymous users (read-only)
+- [ ] Phase 6 — Optimization (radius filtering, binary protocol)
